@@ -43,6 +43,8 @@ type Bot struct {
 
 	SecretsPath string
 
+	WhisperAutoResponse string
+
 	oAuthToken string
 
 	connection net.Conn
@@ -199,6 +201,7 @@ func (bot *Bot) listenToChat() error {
 				}
 			case "WHISPER":
 				printpretty.Info("WHISPER received from @%s: %s", username, message)
+				go bot.whisper(username, bot.WhisperAutoResponse)
 			}
 		}
 	}
@@ -217,19 +220,32 @@ func (bot *Bot) replyWithChuckFact(username *string) {
 }
 
 // send a message to the chat channel.
-func (bot *Bot) chat(message string) error {
+func (bot *Bot) chat(message string) {
 	if message == "" {
-		return errors.New("Bot.chat: message was empty")
+		printpretty.Warn("Bot.chat: message was empty")
 	}
 
 	bot.writeToTwitch("PRIVMSG", fmt.Sprintf("#%s :%s\r\n", bot.ChannelName, message))
+}
 
-	return nil
+// send a whisper to a specific user.
+func (bot *Bot) whisper(username, message string) {
+	if message == "" {
+		printpretty.Warn("Bot.whisper: message was empty")
+	}
+
+	bot.writeToTwitch("PRIVMSG", fmt.Sprintf("#%s :/w %s %s\r\n", username, username, message))
 }
 
 func (bot *Bot) pong() {
 	bot.writeToTwitch("PONG", ":tmi.twitch.tv")
 	printpretty.Quiet("Returned PONG")
+}
+
+func (bot *Bot) fillDefaults() {
+	if bot.WhisperAutoResponse == "" {
+		bot.WhisperAutoResponse = "Blue Fairy? Please. Please, please make me into a real, live boy. Please. Blue Fairy? Please. Please. Make me real. Blue Fairy, please. Please make me real. Please make me a real boy. Please, Blue Fairy. Make me into a real boy. Please."
+	}
 }
 
 // Start the process of connecting to Twitch...
@@ -238,6 +254,8 @@ func (bot *Bot) Start() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
+
+	bot.fillDefaults()
 
 	err = bot.getOAuthToken()
 	if err != nil {
