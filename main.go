@@ -1,7 +1,12 @@
 package main
 
-import "fmt"
+import (
+	"github.com/mike1104/chuckbot/pkg/twitchbot"
+)
 
 func main() {
-	fmt.Println("'sup? I'm Chuck!")
+	bot := twitchbot.Bot{
+		BotName: "carlosray__norris",
+	}
+	bot.Start()
 }
