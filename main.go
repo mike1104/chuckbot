@@ -7,6 +7,8 @@ import (
 func main() {
 	bot := twitchbot.Bot{
 		BotName: "carlosray__norris",
+		Server:  "irc.chat.twitch.tv",
+		Port:    "6697",
 	}
 	bot.Start()
 }
