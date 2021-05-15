@@ -37,6 +37,7 @@ const (
 	ERROR
 	FATAL
 	QUIET
+	SUCCESS
 )
 
 func printPretty(messageType messageType, message string, args ...interface{}) {
@@ -51,6 +52,8 @@ func printPretty(messageType messageType, message string, args ...interface{}) {
 		color = yellow
 	case ERROR:
 		color = red
+	case SUCCESS:
+		color = green
 	}
 
 	fmt.Printf("[%s] %s\r\n", time.Now().Local().Format("15:04:05.000"), sprintc(color, formattedMessage))
@@ -78,6 +81,11 @@ func Warn(message string, args ...interface{}) {
 // Error prints a message with red text
 func Error(message string, args ...interface{}) {
 	printPretty(ERROR, message, args...)
+}
+
+// Success prints a message with green text
+func Success(message string, args ...interface{}) {
+	printPretty(SUCCESS, message, args...)
 }
 
 // Highlight searches for a substring and highlights it green

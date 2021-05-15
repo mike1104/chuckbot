@@ -161,12 +161,24 @@ func (bot *Bot) listenToChat() error {
 				switch command {
 				case "chucknorris":
 					printpretty.Highlight("> "+fullMessage, "!"+command)
+
+					go bot.replyWithChuckFact(&username)
 				}
 			} else {
 				printpretty.Info("> Message from @%s: %s", username, message)
 			}
 		}
 	}
+}
+
+func (bot *Bot) replyWithChuckFact(username *string) {
+	fact, err := FetchChuckFact()
+	if err != nil {
+		printpretty.Error(err.Error())
+		return
+	}
+
+	printpretty.Success("< Chuck Fact for #%s: %s", *username, fact)
 }
 
 // Start the process of connecting to Twitch...
