@@ -1,24 +1,41 @@
 package twitchbot
 
 import (
+	"bufio"
 	"crypto/tls"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
+	"net/textproto"
 	"time"
 )
 
-var reconnectWaitTime = time.Duration(0)
+var reconnectWaitTime time.Duration
+var authenticationErrorMessage = ":tmi.twitch.tv NOTICE * :Login authentication failed"
 
 // Bot will hit you with facts about Chuck Norris so hard your ancestors will feel it
 type Bot struct {
 	BotName string
 
+	ChannelName string
+
 	Port string
 
 	Server string
 
+	SecretsPath string
+
+	oAuthToken string
+
 	connection net.Conn
+}
+
+type secrets struct {
+	// The bot account's OAuth token.
+	OAuthToken string `json:"token,omitempty"`
 }
 
 func (bot *Bot) connect() {
@@ -38,12 +55,19 @@ func (bot *Bot) connect() {
 
 	fmt.Printf("Connected to %s\r\n", address)
 
-	bot.disconnect()
 }
 
 func (bot *Bot) disconnect() {
+	fmt.Printf("Disconnecting from %s\r\n", bot.Server)
 	bot.connection.Close()
 	fmt.Printf("Closed connection to %s\r\n", bot.Server)
+}
+
+func (bot *Bot) authenticate() {
+	fmt.Printf("Authenticating %s...\r\n", bot.BotName)
+	bot.connection.Write([]byte("PASS " + bot.oAuthToken + "\r\n"))
+	bot.connection.Write([]byte("NICK " + bot.BotName + "\r\n"))
+	fmt.Printf("Authentication sent for %s\r\n", bot.BotName)
 }
 
 func backoffConnectionRate() {
@@ -54,17 +78,82 @@ func backoffConnectionRate() {
 	}
 }
 
-func (bot *Bot) isConfigured() bool {
-	return bot.BotName != "" &&
-		bot.Server != "" &&
-		bot.Port != ""
+func (bot *Bot) verifyConfiguration() error {
+	if bot.BotName == "" || bot.Server == "" || bot.Port == "" || bot.ChannelName == "" || bot.SecretsPath == "" {
+		return errors.New("Bot is not configured")
+	}
+
+	return nil
+}
+
+func (bot *Bot) getOAuthToken() error {
+	data, err := ioutil.ReadFile(bot.SecretsPath)
+	if err != nil {
+		return err
+	}
+
+	var str secrets
+	err = json.Unmarshal(data, &str)
+
+	if err != nil {
+		return err
+	}
+
+	if str.OAuthToken == "" {
+		return errors.New("Bot.getOAuthToken: 'token' is empty")
+	}
+
+	bot.oAuthToken = str.OAuthToken
+
+	return nil
+}
+
+func (bot *Bot) listenToChat() error {
+	// read from connection
+	tp := textproto.NewReader(bufio.NewReader(bot.connection))
+
+	defer bot.disconnect()
+
+	// listen for chat messages
+	for {
+		line, err := tp.ReadLine()
+
+		fmt.Println(line)
+
+		if err != nil {
+			return errors.New("Bot.listenToChat: Failed to read line from channel")
+		}
+
+		if line == authenticationErrorMessage {
+			log.Fatal("Authentication failed. Check your Bot's username and token")
+		}
+	}
 }
 
 // Start the process of connecting to Twitch...
 func (bot *Bot) Start() {
-	if !bot.isConfigured() {
-		log.Fatal("Bot not configured")
+	err := bot.verifyConfiguration()
+	if err != nil {
+		log.Fatal(err.Error())
 	}
 
-	bot.connect()
+	err = bot.getOAuthToken()
+	if err != nil {
+		log.Println(err.Error())
+		log.Fatalf("Could not find 'token' in %s", bot.SecretsPath)
+	}
+
+	for {
+		reconnectWaitTime = 0
+		bot.connect()
+		bot.authenticate()
+
+		err = bot.listenToChat()
+		if err != nil {
+			fmt.Println(err.Error())
+			bot.disconnect()
+		} else {
+			fmt.Println("Nothing more for us to do here")
+		}
+	}
 }
