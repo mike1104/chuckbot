@@ -161,15 +161,10 @@ func (bot *Bot) listenToChat() error {
 				switch command {
 				case "chucknorris":
 					printpretty.Highlight("> "+fullMessage, "!"+command)
-
-					continue
 				}
 			} else {
-
+				printpretty.Info("> Message from @%s: %s", username, message)
 			}
-
-			printpretty.Info("Message from @%s: %s", username, message)
-
 		}
 	}
 }
