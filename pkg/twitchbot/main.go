@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/textproto"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/mike1104/chuckbot/pkg/printpretty"
@@ -19,8 +20,12 @@ var reconnectWaitTime time.Duration
 var authenticationErrorMessage = ":tmi.twitch.tv NOTICE * :Login authentication failed"
 
 // Deconstruct a message
-// 1: (userName) 3: (message)
-var messageRegex *regexp.Regexp = regexp.MustCompile(`^:(\w+)!\w+@\w+\.tmi\.twitch\.tv PRIVMSG #?\w+ :(.*)$`)
+// 1: (username) 2: (full message) 3: (message)
+var messageRegex *regexp.Regexp = regexp.MustCompile(`^:(\w+)!\w+@\w+\.tmi\.twitch\.tv (PRIVMSG #?\w+ :(.*))$`)
+
+// Pull a command from anywhere in a PRIVMSG message
+// 1: (command)
+var commandRegex *regexp.Regexp = regexp.MustCompile(`!(\w+)`)
 
 // Bot will hit you with facts about Chuck Norris so hard your ancestors will feel it
 type Bot struct {
@@ -146,9 +151,25 @@ func (bot *Bot) listenToChat() error {
 		chatMatches := messageRegex.FindStringSubmatch(line)
 		if chatMatches != nil {
 			username := chatMatches[1]
-			message := chatMatches[2]
+			fullMessage := chatMatches[2]
+			message := chatMatches[3]
+
+			commandMatches := commandRegex.FindStringSubmatch(message)
+			if commandMatches != nil {
+				command := strings.Trim(commandMatches[1], " ")
+
+				switch command {
+				case "chucknorris":
+					printpretty.Highlight("> "+fullMessage, "!"+command)
+
+					continue
+				}
+			} else {
+
+			}
 
 			printpretty.Info("Message from @%s: %s", username, message)
+
 		}
 	}
 }

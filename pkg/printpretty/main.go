@@ -3,12 +3,15 @@ package printpretty
 import (
 	"fmt"
 	"runtime"
+	"strings"
 	"time"
 )
 
+// #include "Windows.h"
 var (
 	reset  = "\033[0m"
 	red    = "\033[31m"
+	green  = "\033[32m"
 	yellow = "\033[33m"
 	gray   = "\033[90m"
 	white  = "\033[97m"
@@ -18,6 +21,7 @@ func init() {
 	if runtime.GOOS == "windows" {
 		reset = ""
 		red = ""
+		green = ""
 		yellow = ""
 		gray = ""
 		white = ""
@@ -74,4 +78,10 @@ func Warn(message string, args ...interface{}) {
 // Error prints a message with red text
 func Error(message string, args ...interface{}) {
 	printPretty(ERROR, message, args...)
+}
+
+// Highlight searches for a substring and highlights it green
+func Highlight(message, command string, args ...interface{}) {
+	formattedMessage := strings.ReplaceAll(message, command, green+command+reset)
+	printPretty(INFO, formattedMessage, args...)
 }
