@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
@@ -51,7 +52,7 @@ type secrets struct {
 
 func (bot *Bot) connect() {
 	var err error
-	address := bot.Server + ":" + bot.Port
+	address := fmt.Sprintf("%s:%s", bot.Server, bot.Port)
 
 	printpretty.Info("Establishing connection to %s...", address)
 
@@ -76,14 +77,14 @@ func (bot *Bot) disconnect() {
 
 func (bot *Bot) authenticate() {
 	printpretty.Info("Authenticating %s...", bot.BotName)
-	bot.connection.Write([]byte("PASS " + bot.oAuthToken + "\r\n"))
-	bot.connection.Write([]byte("NICK " + bot.BotName + "\r\n"))
+	bot.writeToTwitch("PASS", bot.oAuthToken)
+	bot.writeToTwitch("NICK", bot.BotName)
 	printpretty.Info("Authentication sent for %s", bot.BotName)
 }
 
 func (bot *Bot) joinChannel() {
 	printpretty.Info("Joining channel #%s...", bot.ChannelName)
-	bot.connection.Write([]byte("JOIN #" + bot.ChannelName + "\r\n"))
+	bot.writeToTwitch("JOIN", "#"+bot.ChannelName)
 	printpretty.Info("Join attempted for channel #%s...", bot.ChannelName)
 }
 
@@ -92,6 +93,22 @@ func backoffConnectionRate() {
 		reconnectWaitTime = time.Second
 	} else {
 		reconnectWaitTime *= 2
+	}
+}
+
+func (bot *Bot) writeToTwitch(command, message string) {
+	fullMessage := fmt.Sprintf("%s %s\r\n", command, message)
+
+	// check if message is too long
+	if len(fullMessage) > 512 {
+		printpretty.Warn("Bot.writeToTwitch: formattedMessage exceeded 512 bytes")
+		return
+	}
+
+	_, err := bot.connection.Write([]byte(fullMessage))
+
+	if err != nil {
+		printpretty.Warn("Bot.writeToTwitch: failed to write to twitch")
 	}
 }
 
@@ -179,6 +196,19 @@ func (bot *Bot) replyWithChuckFact(username *string) {
 	}
 
 	printpretty.Success("< Chuck Fact for #%s: %s", *username, fact)
+
+	bot.chat(fmt.Sprintf("%s: %s", *username, fact))
+}
+
+// send a message to the chat channel.
+func (bot *Bot) chat(message string) error {
+	if message == "" {
+		return errors.New("Bot.chat: message was empty")
+	}
+
+	bot.writeToTwitch("PRIVMSG", fmt.Sprintf("#%s :%s\r\n", bot.ChannelName, message))
+
+	return nil
 }
 
 // Start the process of connecting to Twitch...
