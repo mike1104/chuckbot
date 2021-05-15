@@ -5,13 +5,14 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/textproto"
 	"regexp"
 	"time"
+
+	"github.com/mike1104/chuckbot/pkg/printpretty"
 )
 
 var reconnectWaitTime time.Duration
@@ -47,38 +48,38 @@ func (bot *Bot) connect() {
 	var err error
 	address := bot.Server + ":" + bot.Port
 
-	fmt.Printf("Establishing connection to %s...\r\n", address)
+	printpretty.Info("Establishing connection to %s...", address)
 
 	bot.connection, err = tls.Dial("tcp", address, nil)
 	if err != nil {
-		log.Printf("Connection to %s failed, trying again in %s\r\n", address, reconnectWaitTime)
+		printpretty.Info("Connection to %s failed, trying again in %s", address, reconnectWaitTime)
 		time.Sleep(reconnectWaitTime)
 		backoffConnectionRate()
 		bot.connect()
 		return
 	}
 
-	fmt.Printf("Connected to %s\r\n", address)
+	printpretty.Info("Connected to %s", address)
 
 }
 
 func (bot *Bot) disconnect() {
-	fmt.Printf("Disconnecting from %s\r\n", bot.Server)
+	printpretty.Info("Disconnecting from %s", bot.Server)
 	bot.connection.Close()
-	fmt.Printf("Closed connection to %s\r\n", bot.Server)
+	printpretty.Info("Closed connection to %s", bot.Server)
 }
 
 func (bot *Bot) authenticate() {
-	fmt.Printf("Authenticating %s...\r\n", bot.BotName)
+	printpretty.Info("Authenticating %s...", bot.BotName)
 	bot.connection.Write([]byte("PASS " + bot.oAuthToken + "\r\n"))
 	bot.connection.Write([]byte("NICK " + bot.BotName + "\r\n"))
-	fmt.Printf("Authentication sent for %s\r\n", bot.BotName)
+	printpretty.Info("Authentication sent for %s", bot.BotName)
 }
 
 func (bot *Bot) joinChannel() {
-	fmt.Printf("Joining channel #%s...\r\n", bot.ChannelName)
+	printpretty.Info("Joining channel #%s...", bot.ChannelName)
 	bot.connection.Write([]byte("JOIN #" + bot.ChannelName + "\r\n"))
-	fmt.Printf("Join attempted for channel #%s...\r\n", bot.ChannelName)
+	printpretty.Info("Join attempted for channel #%s...", bot.ChannelName)
 }
 
 func backoffConnectionRate() {
@@ -129,14 +130,16 @@ func (bot *Bot) listenToChat() error {
 	for {
 		line, err := tp.ReadLine()
 
-		fmt.Println(line)
+		// Quietly log everything from Twitch
+		printpretty.Quiet(line)
 
 		if err != nil {
 			return errors.New("Bot.listenToChat: Failed to read line from channel")
 		}
 
 		if line == authenticationErrorMessage {
-			log.Fatal("Authentication failed. Check your Bot's username and token")
+			printpretty.Error("Authentication failed. Check your Bot's username and token")
+			return nil
 		}
 
 		// handle a PRIVMSG message
@@ -145,9 +148,8 @@ func (bot *Bot) listenToChat() error {
 			username := chatMatches[1]
 			message := chatMatches[2]
 
-			fmt.Printf("Message from @%s: %s\r\n", username, message)
+			printpretty.Info("Message from @%s: %s", username, message)
 		}
-
 	}
 }
 
@@ -160,8 +162,9 @@ func (bot *Bot) Start() {
 
 	err = bot.getOAuthToken()
 	if err != nil {
-		log.Println(err.Error())
-		log.Fatalf("Could not find 'token' in %s", bot.SecretsPath)
+		printpretty.Error(err.Error())
+		printpretty.Error("Could not find 'token' in %s", bot.SecretsPath)
+		return
 	}
 
 	for {
@@ -172,10 +175,10 @@ func (bot *Bot) Start() {
 
 		err = bot.listenToChat()
 		if err != nil {
-			fmt.Println(err.Error())
-			bot.disconnect()
+			printpretty.Warn(err.Error())
 		} else {
-			fmt.Println("Nothing more for us to do here")
+			// Nothing more can be done here but break the loop and exit.
+			return
 		}
 	}
 }
