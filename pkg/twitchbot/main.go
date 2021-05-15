@@ -18,7 +18,10 @@ import (
 )
 
 var reconnectWaitTime time.Duration
-var authenticationErrorMessage = ":tmi.twitch.tv NOTICE * :Login authentication failed"
+var (
+	authenticationErrorMessage = ":tmi.twitch.tv NOTICE * :Login authentication failed"
+	pingMessage                = "PING :tmi.twitch.tv"
+)
 
 // Deconstruct a message
 // 1: (username) 2: (full message) 3: (message)
@@ -159,9 +162,13 @@ func (bot *Bot) listenToChat() error {
 			return errors.New("Bot.listenToChat: Failed to read line from channel")
 		}
 
-		if line == authenticationErrorMessage {
+		switch line {
+		case authenticationErrorMessage:
 			printpretty.Error("Authentication failed. Check your Bot's username and token")
 			return nil
+		case pingMessage:
+			go bot.pong()
+			continue
 		}
 
 		// handle a PRIVMSG message
@@ -181,8 +188,6 @@ func (bot *Bot) listenToChat() error {
 
 					go bot.replyWithChuckFact(&username)
 				}
-			} else {
-				printpretty.Info("> Message from @%s: %s", username, message)
 			}
 		}
 	}
@@ -209,6 +214,11 @@ func (bot *Bot) chat(message string) error {
 	bot.writeToTwitch("PRIVMSG", fmt.Sprintf("#%s :%s\r\n", bot.ChannelName, message))
 
 	return nil
+}
+
+func (bot *Bot) pong() {
+	bot.writeToTwitch("PONG", ":tmi.twitch.tv")
+	printpretty.Quiet("Returned PONG")
 }
 
 // Start the process of connecting to Twitch...
