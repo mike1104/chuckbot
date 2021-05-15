@@ -70,6 +70,12 @@ func (bot *Bot) authenticate() {
 	fmt.Printf("Authentication sent for %s\r\n", bot.BotName)
 }
 
+func (bot *Bot) joinChannel() {
+	fmt.Printf("Joining channel #%s...\r\n", bot.ChannelName)
+	bot.connection.Write([]byte("JOIN #" + bot.ChannelName + "\r\n"))
+	fmt.Printf("Join attempted for channel #%s...\r\n", bot.ChannelName)
+}
+
 func backoffConnectionRate() {
 	if reconnectWaitTime == 0 {
 		reconnectWaitTime = time.Second
@@ -147,6 +153,7 @@ func (bot *Bot) Start() {
 		reconnectWaitTime = 0
 		bot.connect()
 		bot.authenticate()
+		bot.joinChannel()
 
 		err = bot.listenToChat()
 		if err != nil {
