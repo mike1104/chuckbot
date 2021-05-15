@@ -198,7 +198,7 @@ func (bot *Bot) listenToChat() error {
 					}
 				}
 			case "WHISPER":
-				printpretty.Info(fmt.Sprintf("WHISPER received from @%s: %s", username, message))
+				printpretty.Info("WHISPER received from @%s: %s", username, message)
 			}
 		}
 	}
