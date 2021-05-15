@@ -10,11 +10,16 @@ import (
 	"log"
 	"net"
 	"net/textproto"
+	"regexp"
 	"time"
 )
 
 var reconnectWaitTime time.Duration
 var authenticationErrorMessage = ":tmi.twitch.tv NOTICE * :Login authentication failed"
+
+// Deconstruct a message
+// 1: (userName) 3: (message)
+var messageRegex *regexp.Regexp = regexp.MustCompile(`^:(\w+)!\w+@\w+\.tmi\.twitch\.tv PRIVMSG #?\w+ :(.*)$`)
 
 // Bot will hit you with facts about Chuck Norris so hard your ancestors will feel it
 type Bot struct {
@@ -133,6 +138,16 @@ func (bot *Bot) listenToChat() error {
 		if line == authenticationErrorMessage {
 			log.Fatal("Authentication failed. Check your Bot's username and token")
 		}
+
+		// handle a PRIVMSG message
+		chatMatches := messageRegex.FindStringSubmatch(line)
+		if chatMatches != nil {
+			username := chatMatches[1]
+			message := chatMatches[2]
+
+			fmt.Printf("Message from @%s: %s\r\n", username, message)
+		}
+
 	}
 }
 
