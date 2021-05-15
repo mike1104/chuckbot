@@ -24,8 +24,8 @@ var (
 )
 
 // Deconstruct a message
-// 1: (username) 2: (full message) 3: (message)
-var messageRegex *regexp.Regexp = regexp.MustCompile(`^:(\w+)!\w+@\w+\.tmi\.twitch\.tv (PRIVMSG #?\w+ :(.*))$`)
+// 1: (username) 2: (full message) 3: (message type) 4: (message)
+var messageRegex *regexp.Regexp = regexp.MustCompile(`^:(\w+)!\w+@\w+\.tmi\.twitch\.tv ((PRIVMSG|WHISPER) #?\w+ :(.*))$`)
 
 // Pull a command from anywhere in a PRIVMSG message
 // 1: (command)
@@ -83,6 +83,11 @@ func (bot *Bot) authenticate() {
 	bot.writeToTwitch("PASS", bot.oAuthToken)
 	bot.writeToTwitch("NICK", bot.BotName)
 	printpretty.Info("Authentication sent for %s", bot.BotName)
+}
+
+// Needed for receiving whispers
+func (bot *Bot) enableTwitchSpecificCommands() {
+	bot.writeToTwitch("CAP REQ", ":twitch.tv/commands")
 }
 
 func (bot *Bot) joinChannel() {
@@ -176,18 +181,24 @@ func (bot *Bot) listenToChat() error {
 		if chatMatches != nil {
 			username := chatMatches[1]
 			fullMessage := chatMatches[2]
-			message := chatMatches[3]
+			messageType := chatMatches[3]
+			message := chatMatches[4]
 
-			commandMatches := commandRegex.FindStringSubmatch(message)
-			if commandMatches != nil {
-				command := strings.Trim(commandMatches[1], " ")
+			switch messageType {
+			case "PRIVMSG":
+				commandMatches := commandRegex.FindStringSubmatch(message)
+				if commandMatches != nil {
+					command := strings.Trim(commandMatches[1], " ")
 
-				switch command {
-				case "chucknorris":
-					printpretty.Highlight("> "+fullMessage, "!"+command)
+					switch command {
+					case "chucknorris":
+						printpretty.Highlight("> "+fullMessage, "!"+command)
 
-					go bot.replyWithChuckFact(&username)
+						go bot.replyWithChuckFact(&username)
+					}
 				}
+			case "WHISPER":
+				printpretty.Info(fmt.Sprintf("WHISPER received from @%s: %s", username, message))
 			}
 		}
 	}
@@ -239,6 +250,7 @@ func (bot *Bot) Start() {
 		reconnectWaitTime = 0
 		bot.connect()
 		bot.authenticate()
+		bot.enableTwitchSpecificCommands()
 		bot.joinChannel()
 
 		err = bot.listenToChat()
