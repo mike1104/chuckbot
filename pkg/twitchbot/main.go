@@ -195,6 +195,8 @@ func (bot *Bot) listenToChat() error {
 
 	bot.createMessageChannel()
 
+	bot.chat("Hello everyone! Type `!chucknorris` to get some Chuck Norris facts!")
+
 	// listen for chat messages
 	for {
 		line, err := tp.ReadLine()
