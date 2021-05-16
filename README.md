@@ -1,2 +1,4 @@
-# chuckbot
-A Twitch bot that delivers hard facts about Chuck Norris
+Chuckbot
+========
+
+Get the full instructions [here](cmd/chuckbot/README.md)
