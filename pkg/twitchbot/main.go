@@ -17,7 +17,6 @@ import (
 	"github.com/mike1104/chuckbot/pkg/printpretty"
 )
 
-var reconnectWaitTime time.Duration
 var (
 	authenticationErrorMessage = ":tmi.twitch.tv NOTICE * :Login authentication failed"
 	pingMessage                = "PING :tmi.twitch.tv"
@@ -52,6 +51,8 @@ type Bot struct {
 	oAuthToken string
 
 	connection net.Conn
+
+	reconnectWaitTime time.Duration
 }
 
 type secrets struct {
@@ -67,9 +68,9 @@ func (bot *Bot) connect() {
 
 	bot.connection, err = tls.Dial("tcp", address, nil)
 	if err != nil {
-		printpretty.Info("Connection to %s failed, trying again in %s", address, reconnectWaitTime)
-		time.Sleep(reconnectWaitTime)
-		backoffConnectionRate()
+		printpretty.Info("Connection to %s failed, trying again in %s", address, bot.reconnectWaitTime)
+		time.Sleep(bot.reconnectWaitTime)
+		bot.backoffConnectionRate()
 		bot.connect()
 		return
 	}
@@ -102,11 +103,11 @@ func (bot *Bot) joinChannel() {
 	printpretty.Info("Join attempted for channel #%s...", bot.ChannelName)
 }
 
-func backoffConnectionRate() {
-	if reconnectWaitTime == 0 {
-		reconnectWaitTime = time.Second
+func (bot *Bot) backoffConnectionRate() {
+	if bot.reconnectWaitTime == 0 {
+		bot.reconnectWaitTime = time.Second
 	} else {
-		reconnectWaitTime *= 2
+		bot.reconnectWaitTime *= 2
 	}
 }
 
@@ -282,7 +283,7 @@ func (bot *Bot) Start() {
 	}
 
 	for {
-		reconnectWaitTime = 0
+		bot.reconnectWaitTime = 0
 		bot.connect()
 		bot.authenticate()
 		bot.enableTwitchSpecificCommands()
