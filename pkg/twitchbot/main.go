@@ -31,6 +31,8 @@ var messageRegex *regexp.Regexp = regexp.MustCompile(`^:(\w+)!\w+@\w+\.tmi\.twit
 // 1: (command)
 var commandRegex *regexp.Regexp = regexp.MustCompile(`!(\w+)`)
 
+var whisperDeniedRegex *regexp.Regexp = regexp.MustCompile(`:tmi\.twitch\.tv NOTICE #\w+ :Your settings prevent you from sending this whisper`)
+
 // Bot will hit you with facts about Chuck Norris so hard your ancestors will feel it
 type Bot struct {
 	BotName string
@@ -44,6 +46,8 @@ type Bot struct {
 	SecretsPath string
 
 	WhisperAutoResponse string
+
+	WhispersDisabled bool
 
 	oAuthToken string
 
@@ -178,6 +182,14 @@ func (bot *Bot) listenToChat() error {
 			continue
 		}
 
+		if !bot.WhispersDisabled {
+			whisperDeniedMatches := whisperDeniedRegex.MatchString(line)
+			if whisperDeniedMatches {
+				bot.WhispersDisabled = true
+				continue
+			}
+		}
+
 		// handle a PRIVMSG message
 		chatMatches := messageRegex.FindStringSubmatch(line)
 		if chatMatches != nil {
@@ -230,6 +242,11 @@ func (bot *Bot) chat(message string) {
 
 // send a whisper to a specific user.
 func (bot *Bot) whisper(username, message string) {
+	if bot.WhispersDisabled {
+		printpretty.Info("Bot.whisper: Whispers disabled, refusing to send whisper")
+		return
+	}
+
 	if message == "" {
 		printpretty.Warn("Bot.whisper: message was empty")
 	}

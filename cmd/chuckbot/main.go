@@ -6,11 +6,12 @@ import (
 
 func main() {
 	bot := twitchbot.Bot{
-		BotName:     "carlosray__norris",
-		ChannelName: "mikkeever",
-		Server:      "irc.chat.twitch.tv",
-		Port:        "6697",
-		SecretsPath: "./secrets.json",
+		BotName:          "carlosray__norris",
+		ChannelName:      "mikkeever",
+		Server:           "irc.chat.twitch.tv",
+		Port:             "6697",
+		SecretsPath:      "./secrets.json",
+		WhispersDisabled: true,
 	}
 	bot.Start()
 }
