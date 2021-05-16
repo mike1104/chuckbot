@@ -118,6 +118,7 @@ func (bot *Bot) joinChannel() {
 	printpretty.Info("Join attempted for channel #%s...", bot.ChannelName)
 }
 
+// Reduce the rate of reconnection attempts exponentially (first attempt is immediate)
 func (bot *Bot) backoffConnectionRate() {
 	if bot.reconnectWaitTime == 0 {
 		bot.reconnectWaitTime = time.Second
@@ -126,6 +127,7 @@ func (bot *Bot) backoffConnectionRate() {
 	}
 }
 
+// Validates the total message length and writes to the twitch connection
 func (bot *Bot) writeToTwitch(command, message string) {
 	fullMessage := fmt.Sprintf("%s %s\r\n", command, message)
 
@@ -142,6 +144,7 @@ func (bot *Bot) writeToTwitch(command, message string) {
 	}
 }
 
+// Ensures all of the necessary configuration is present for the Bot
 func (bot *Bot) verifyConfiguration() error {
 	if bot.BotName == "" || bot.Server == "" || bot.Port == "" || bot.ChannelName == "" || bot.SecretsPath == "" {
 		return errors.New("Bot is not configured")
@@ -150,6 +153,7 @@ func (bot *Bot) verifyConfiguration() error {
 	return nil
 }
 
+// Get the OAuth token from a JSON file
 func (bot *Bot) getOAuthToken() error {
 	data, err := ioutil.ReadFile(bot.SecretsPath)
 	if err != nil {
@@ -172,10 +176,12 @@ func (bot *Bot) getOAuthToken() error {
 	return nil
 }
 
+// Add a message to the rate limited queue
 func (bot *Bot) queueMessage(msg string) {
 	bot.messageChannel <- msg
 }
 
+// A rate limiter for message sends
 func (bot *Bot) createMessageChannel() {
 	bot.messageChannel = make(chan string, maxMessageQueueLength)
 
@@ -264,6 +270,7 @@ func (bot *Bot) listenToChat() error {
 	}
 }
 
+// Call out to the Chuck Norris API and send the returned fact to the Twitch channel
 func (bot *Bot) replyWithChuckFact(username *string) {
 	fact, err := FetchChuckFact()
 	if err != nil {
@@ -301,11 +308,13 @@ func (bot *Bot) whisper(username, message string) {
 	bot.queueMessage(fmt.Sprintf("#%s :/w %s %s\r\n", username, username, message))
 }
 
+// Lets Twicth know the Bot is still active
 func (bot *Bot) pong() {
 	bot.writeToTwitch("PONG", ":tmi.twitch.tv")
 	printpretty.Quiet("Returned PONG")
 }
 
+// Fills in any of the Bot's optional config with default values
 func (bot *Bot) fillDefaults() {
 	if bot.WhisperAutoResponse == "" {
 		bot.WhisperAutoResponse = "Blue Fairy? Please. Please, please make me into a real, live boy. Please. Blue Fairy? Please. Please. Make me real. Blue Fairy, please. Please make me real. Please make me a real boy. Please, Blue Fairy. Make me into a real boy. Please."
