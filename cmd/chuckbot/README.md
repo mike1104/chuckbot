@@ -1,6 +1,8 @@
 Chuckbot
 ========
-A Twitch bot that delivers hard facts about Chuck Norris.
+A Twitch bot that delivers facts about Chuck Norris.
+
+Use the `!chucknorris` command to ask for a Chuck Norris fact!
 
 Did you know Chuck Norris can unscramble eggs? You do now.
 

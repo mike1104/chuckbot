@@ -30,7 +30,16 @@ var messageRegex *regexp.Regexp = regexp.MustCompile(`^:(\w+)!\w+@\w+\.tmi\.twit
 // 1: (command)
 var commandRegex *regexp.Regexp = regexp.MustCompile(`!(\w+)`)
 
-var whisperDeniedRegex *regexp.Regexp = regexp.MustCompile(`:tmi\.twitch\.tv NOTICE #\w+ :Your settings prevent you from sending this whisper`)
+// 1: (message)
+var noticeRegex *regexp.Regexp = regexp.MustCompile(`^:tmi\.twitch\.tv NOTICE #\w+ :(.+)`)
+
+// Notice messages
+const (
+	messageRateNotice   = "Your message was not sent because you are sending messages too quickly."
+	whisperDeniedNotice = "Your settings prevent you from sending this whisper."
+)
+
+var chatRateLimit = time.Second
 
 // Bot will hit you with facts about Chuck Norris so hard your ancestors will feel it
 type Bot struct {
@@ -53,6 +62,8 @@ type Bot struct {
 	connection net.Conn
 
 	reconnectWaitTime time.Duration
+
+	lastSendTime time.Time
 }
 
 type secrets struct {
@@ -183,12 +194,19 @@ func (bot *Bot) listenToChat() error {
 			continue
 		}
 
-		if !bot.WhispersDisabled {
-			whisperDeniedMatches := whisperDeniedRegex.MatchString(line)
-			if whisperDeniedMatches {
-				bot.WhispersDisabled = true
+		noticeMatches := noticeRegex.FindStringSubmatch(line)
+		if noticeMatches != nil {
+			noticeMessage := noticeMatches[1]
+
+			switch noticeMessage {
+			case messageRateNotice:
+				printpretty.Notice(noticeMessage)
 				continue
+			case whisperDeniedNotice:
+				printpretty.Notice(noticeMessage)
+				bot.WhispersDisabled = true
 			}
+			continue
 		}
 
 		// handle a PRIVMSG message
@@ -205,11 +223,10 @@ func (bot *Bot) listenToChat() error {
 				if commandMatches != nil {
 					command := strings.Trim(commandMatches[1], " ")
 
-					switch command {
-					case "chucknorris":
+					if command == "chucknorris" {
 						printpretty.Highlight("> "+fullMessage, "!"+command)
-
 						go bot.replyWithChuckFact(&username)
+						time.Sleep(time.Duration(30 / 20))
 					}
 				}
 			case "WHISPER":
@@ -228,8 +245,13 @@ func (bot *Bot) replyWithChuckFact(username *string) {
 	}
 
 	printpretty.Success("< Chuck Fact for #%s: %s", *username, fact)
+	if time.Since(bot.lastSendTime) < chatRateLimit {
+		printpretty.Info("Aborting send to avoid triggering twitch rate limit")
+		return
+	}
 
 	bot.chat(fmt.Sprintf("%s: %s", *username, fact))
+	bot.lastSendTime = time.Now()
 }
 
 // send a message to the chat channel.
@@ -238,7 +260,13 @@ func (bot *Bot) chat(message string) {
 		printpretty.Warn("Bot.chat: message was empty")
 	}
 
+	if time.Since(bot.lastSendTime) < chatRateLimit {
+		printpretty.Info("Aborting send to avoid triggering twitch rate limit")
+		return
+	}
+
 	bot.writeToTwitch("PRIVMSG", fmt.Sprintf("#%s :%s\r\n", bot.ChannelName, message))
+	bot.lastSendTime = time.Now()
 }
 
 // send a whisper to a specific user.

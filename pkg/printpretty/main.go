@@ -13,6 +13,7 @@ var (
 	red    = "\033[31m"
 	green  = "\033[32m"
 	yellow = "\033[33m"
+	cyan   = "\033[36m"
 	gray   = "\033[90m"
 	white  = "\033[97m"
 )
@@ -23,6 +24,7 @@ func init() {
 		red = ""
 		green = ""
 		yellow = ""
+		cyan = ""
 		gray = ""
 		white = ""
 	}
@@ -33,6 +35,7 @@ type messageType int
 // Enum for status levels
 const (
 	INFO messageType = iota
+	NOTICE
 	WARNING
 	ERROR
 	FATAL
@@ -48,6 +51,8 @@ func printPretty(messageType messageType, message string, args ...interface{}) {
 	switch messageType {
 	case QUIET:
 		color = gray
+	case NOTICE:
+		color = cyan
 	case WARNING:
 		color = yellow
 	case ERROR:
@@ -66,6 +71,11 @@ func sprintc(color, str string) string {
 // Quiet prints a message with gray text
 func Quiet(message string, args ...interface{}) {
 	printPretty(QUIET, message, args...)
+}
+
+// Notice prints a message with cyan text
+func Notice(message string, args ...interface{}) {
+	printPretty(NOTICE, message, args...)
 }
 
 // Info prints a message with white text
