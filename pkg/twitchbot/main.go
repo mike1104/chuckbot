@@ -39,7 +39,9 @@ const (
 	whisperDeniedNotice = "Your settings prevent you from sending this whisper."
 )
 
-var chatRateLimit = time.Second
+var chatRateLimit = 30 * time.Second / 20
+
+const maxMessageQueueLength = 10
 
 // Bot will hit you with facts about Chuck Norris so hard your ancestors will feel it
 type Bot struct {
@@ -57,13 +59,13 @@ type Bot struct {
 
 	WhispersDisabled bool
 
+	messageChannel chan string
+
 	oAuthToken string
 
 	connection net.Conn
 
 	reconnectWaitTime time.Duration
-
-	lastSendTime time.Time
 }
 
 type secrets struct {
@@ -105,7 +107,9 @@ func (bot *Bot) authenticate() {
 
 // Needed for receiving whispers
 func (bot *Bot) enableTwitchSpecificCommands() {
+	printpretty.Info("Enabling twitch commands")
 	bot.writeToTwitch("CAP REQ", ":twitch.tv/commands")
+	printpretty.Info("Enabled twitch commands")
 }
 
 func (bot *Bot) joinChannel() {
@@ -168,11 +172,28 @@ func (bot *Bot) getOAuthToken() error {
 	return nil
 }
 
+func (bot *Bot) queueMessage(msg string) {
+	bot.messageChannel <- msg
+}
+
+func (bot *Bot) createMessageChannel() {
+	bot.messageChannel = make(chan string, maxMessageQueueLength)
+
+	go func() {
+		for message := range bot.messageChannel {
+			bot.writeToTwitch("PRIVMSG", message)
+			time.Sleep(chatRateLimit)
+		}
+	}()
+}
+
 func (bot *Bot) listenToChat() error {
 	// read from connection
 	tp := textproto.NewReader(bufio.NewReader(bot.connection))
 
 	defer bot.disconnect()
+
+	bot.createMessageChannel()
 
 	// listen for chat messages
 	for {
@@ -225,8 +246,12 @@ func (bot *Bot) listenToChat() error {
 
 					if command == "chucknorris" {
 						printpretty.Highlight("> "+fullMessage, "!"+command)
-						go bot.replyWithChuckFact(&username)
-						time.Sleep(time.Duration(30 / 20))
+						// Don't make more requests to the API if the message queue has maxed out
+						if len(bot.messageChannel) < maxMessageQueueLength {
+							go bot.replyWithChuckFact(&username)
+						} else {
+							printpretty.Info("Too many messages queued up. Not sending request for more facts")
+						}
 					}
 				}
 			case "WHISPER":
@@ -245,28 +270,18 @@ func (bot *Bot) replyWithChuckFact(username *string) {
 	}
 
 	printpretty.Success("< Chuck Fact for #%s: %s", *username, fact)
-	if time.Since(bot.lastSendTime) < chatRateLimit {
-		printpretty.Info("Aborting send to avoid triggering twitch rate limit")
-		return
-	}
 
 	bot.chat(fmt.Sprintf("%s: %s", *username, fact))
-	bot.lastSendTime = time.Now()
 }
 
 // send a message to the chat channel.
 func (bot *Bot) chat(message string) {
 	if message == "" {
 		printpretty.Warn("Bot.chat: message was empty")
-	}
-
-	if time.Since(bot.lastSendTime) < chatRateLimit {
-		printpretty.Info("Aborting send to avoid triggering twitch rate limit")
 		return
 	}
 
-	bot.writeToTwitch("PRIVMSG", fmt.Sprintf("#%s :%s\r\n", bot.ChannelName, message))
-	bot.lastSendTime = time.Now()
+	bot.queueMessage(fmt.Sprintf("#%s :%s\r\n", bot.ChannelName, message))
 }
 
 // send a whisper to a specific user.
@@ -278,9 +293,10 @@ func (bot *Bot) whisper(username, message string) {
 
 	if message == "" {
 		printpretty.Warn("Bot.whisper: message was empty")
+		return
 	}
 
-	bot.writeToTwitch("PRIVMSG", fmt.Sprintf("#%s :/w %s %s\r\n", username, username, message))
+	bot.queueMessage(fmt.Sprintf("#%s :/w %s %s\r\n", username, username, message))
 }
 
 func (bot *Bot) pong() {
